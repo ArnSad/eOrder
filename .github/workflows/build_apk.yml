@@ -23,19 +23,39 @@ jobs:
       - name: Setup Flutter SDK
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.x'
           channel: 'stable'
           cache: true
 
+      - name: Detect Flutter Project Directory
+        id: locate
+        run: |
+          if [ -f "pubspec.yaml" ]; then
+            echo "DIR=." >> $GITHUB_ENV
+            echo "Found pubspec.yaml in root repository."
+          else
+            TARGET=$(find . -name "pubspec.yaml" -not -path "*/.*" | head -n 1)
+            if [ -n "$TARGET" ]; then
+              DIR=$(dirname "$TARGET")
+              echo "DIR=$DIR" >> $GITHUB_ENV
+              echo "Found pubspec.yaml in subfolder: $DIR"
+            else
+              echo "ERROR: pubspec.yaml not found in repository!"
+              exit 1
+            fi
+          fi
+
       - name: Install Dependencies
-        run: flutter pub get
+        working-directory: ${{ env.DIR }}
+        run: |
+          flutter pub get || flutter pub upgrade || flutter pub get
 
       - name: Build Universal Release APK
-        run: flutter build apk --release
+        working-directory: ${{ env.DIR }}
+        run: flutter build apk --release --no-tree-shake-icons
 
       - name: Upload Release APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: marg-eorder-release-apk
-          path: build/app/outputs/flutter-apk/*.apk
+          path: ${{ env.DIR }}/build/app/outputs/flutter-apk/*.apk
           retention-days: 14
