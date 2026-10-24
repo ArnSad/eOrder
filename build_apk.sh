@@ -1,24 +1,67 @@
-#!/usr/bin/env bash
-# ==============================================================================
-# Marg eOrder - Standalone Android APK Compilation Script
-# ==============================================================================
-set -e
+name: Build Marg eOrder Android APK
 
-echo "==> Cleaning previous Flutter build artifacts..."
-flutter clean
+on:
+  push:
+    branches: [ '**' ]
+  workflow_dispatch:
 
-echo "==> Resolving Flutter dependencies..."
-flutter pub get
+jobs:
+  build:
+    name: Build Android Release APK
+    runs-on: ubuntu-latest
 
-echo "==> Running verification tests..."
-flutter test test/data_layer_test.dart
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-echo "==> Compiling Release Android APK..."
-flutter build apk --release --split-per-abi
+      - name: Setup Java JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
 
-echo ""
-echo "=============================================================================="
-echo " BUILD SUCCESSFUL!"
-echo " Universal Release APK: build/app/outputs/flutter-apk/app-release.apk"
-echo " ARM64-v8a Device APK: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
-echo "=============================================================================="
+      - name: Setup Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Detect Flutter Project Directory
+        id: locate
+        run: |
+          if [ -f "pubspec.yaml" ]; then
+            echo "DIR=." >> $GITHUB_ENV
+            echo "Found pubspec.yaml in root repository."
+          else
+            TARGET=$(find . -name "pubspec.yaml" -not -path "*/.*" | head -n 1)
+            if [ -n "$TARGET" ]; then
+              DIR=$(dirname "$TARGET")
+              echo "DIR=$DIR" >> $GITHUB_ENV
+              echo "Found pubspec.yaml in subfolder: $DIR"
+            else
+              echo "ERROR: pubspec.yaml not found in repository!"
+              exit 1
+            fi
+          fi
+
+      - name: Ensure Android Native Scaffolding
+        working-directory: ${{ env.DIR }}
+        run: |
+          flutter create . --platforms=android --org com.marg.eorder
+
+      - name: Install Dependencies
+        working-directory: ${{ env.DIR }}
+        run: |
+          flutter pub get
+
+      - name: Build Universal Release APK
+        working-directory: ${{ env.DIR }}
+        run: |
+          flutter build apk --release --no-tree-shake-icons
+
+      - name: Upload Release APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: marg-eorder-release-apk
+          path: ${{ env.DIR }}/build/app/outputs/flutter-apk/*.apk
+          retention-days: 14
