@@ -65,7 +65,7 @@ jobs:
       - name: Build Release APK
         working-directory: ${{ env.APP_DIR }}
         run: |
-          flutter build apk --release --no-tree-shake-icons
+          flutter build apk --release --no-tree-shake-icons --extra-front-end-options=--enable-experiment=dot-shorthands || flutter build apk --release --no-tree-shake-icons
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
